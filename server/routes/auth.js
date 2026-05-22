@@ -61,7 +61,7 @@ router.post('/login', async (req, res) => {
 
 // Đăng ký tài khoản CTV mới
 router.post('/register', async (req, res) => {
-  const { username, password, name, phone, email, githubUsername } = req.body;
+  const { username, password, name, phone, email, githubUsername, skills, portfolioUrl, bio, preferredPlatforms, availability } = req.body;
   if (!username || !password || !name || !phone || !email) {
     return res.status(400).json({ message: 'Vui lòng nhập đầy đủ thông tin đăng ký bắt buộc.' });
   }
@@ -95,6 +95,11 @@ router.post('/register', async (req, res) => {
       balance: 0,
       status: 'pending', // Chờ phê duyệt của Admin
       githubUsername: githubUsername || '',
+      skills: Array.isArray(skills) ? skills : String(skills || '').split(',').map(s => s.trim()).filter(Boolean),
+      portfolioUrl: portfolioUrl || '',
+      bio: bio || '',
+      preferredPlatforms: Array.isArray(preferredPlatforms) ? preferredPlatforms : String(preferredPlatforms || '').split(',').map(p => p.trim()).filter(Boolean),
+      availability: availability || '',
       joinedAt: new Date().toISOString()
     };
     db.collaborators.push(newCtv);

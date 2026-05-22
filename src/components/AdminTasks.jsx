@@ -20,10 +20,41 @@ const AdminTasks = ({ tasks, setTasks, submissions = [], collaborators = [], tri
   const [techRequirementsText, setTechRequirementsText] = useState('');
   const [instructionsText, setInstructionsText] = useState('');
   const [milestonesText, setMilestonesText] = useState('');
+  const [taskCode, setTaskCode] = useState('');
+  const [githubRepo, setGithubRepo] = useState('');
+  const [githubBranch, setGithubBranch] = useState('');
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState('All');
+
+  const getTaskLifecycle = (task) => {
+    const taskSubmissions = submissions.filter(s => s.taskId === task.id);
+    const latestSubmission = [...taskSubmissions].sort((a, b) => new Date(b.revisionSubmittedAt || b.submittedAt) - new Date(a.revisionSubmittedAt || a.submittedAt))[0];
+    const overdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
+
+    if (task.status === 'completed' || taskSubmissions.some(s => s.status === 'approved')) {
+      return { label: 'Hoàn thành', badge: 'badge-success', overdue: false };
+    }
+    if (latestSubmission?.status === 'revision_requested') {
+      return { label: 'Cần sửa', badge: 'badge-warning', overdue };
+    }
+    if (latestSubmission?.status === 'pending') {
+      return { label: 'Chờ duyệt', badge: 'badge-warning', overdue };
+    }
+    if (task.status === 'paused') {
+      return { label: 'Tạm dừng', badge: 'badge-danger', overdue };
+    }
+    if (overdue) {
+      return { label: 'Quá hạn', badge: 'badge-danger', overdue: true };
+    }
+    if (task.assignedCtvId !== null && task.assignedCtvId !== undefined) {
+      return { label: 'Đang làm', badge: 'badge-info', overdue };
+    }
+    return { label: 'Chưa nhận', badge: 'badge-secondary', overdue };
+  };
+
+  const formatDateTime = (value) => value ? new Date(value).toLocaleString('vi-VN') : '—';
 
   const handleDownloadTaskMarkdown = (task, computed) => {
     if (!task) return;
@@ -108,7 +139,10 @@ ${submissionLines}
     setTechRequirementsText('');
     setInstructionsText('');
     setMilestonesText('');
-    
+    setTaskCode('');
+    setGithubRepo('');
+    setGithubBranch('');
+
     // Set default deadline 3 days from now
     const defaultDate = new Date();
     defaultDate.setDate(defaultDate.getDate() + 3);
@@ -130,7 +164,10 @@ ${submissionLines}
     setTechRequirementsText(task.technicalRequirements ? task.technicalRequirements.join('\n') : '');
     setInstructionsText(task.instructions ? task.instructions.join('\n') : '');
     setMilestonesText(task.milestones ? task.milestones.map(m => `${m.title} | ${m.date}`).join('\n') : '');
-    
+    setTaskCode(task.taskCode || `task-${task.id}`);
+    setGithubRepo(task.githubRepo || '');
+    setGithubBranch(task.githubBranch || '');
+
     setIsModalOpen(true);
   };
 
@@ -162,7 +199,10 @@ ${submissionLines}
       kpis,
       technicalRequirements,
       instructions,
-      milestones
+      milestones,
+      taskCode: taskCode.trim() || (editingTask ? `task-${editingTask.id}` : ''),
+      githubRepo: githubRepo.trim(),
+      githubBranch: githubBranch.trim()
     };
 
     if (editingTask) {
@@ -303,24 +343,30 @@ ${submissionLines}
                 <th>Phần thưởng</th>
                 <th>Hạn chót</th>
                 <th>Trạng thái</th>
+                <th>Lifecycle</th>
                 <th style={{ textAlign: 'center' }}>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>
                     Không tìm thấy nhiệm vụ nào phù hợp!
                   </td>
                 </tr>
               ) : (
-                filteredTasks.map((task) => (
+                filteredTasks.map((task) => {
+                  const lifecycle = getTaskLifecycle(task);
+                  return (
                   <tr key={task.id}>
                     <td>
                       <div onClick={() => { setViewingTaskDetails(task); setActiveDetailsTab('overview'); }} style={{ cursor: 'pointer' }}>
                         <p style={{ fontWeight: '600', color: 'var(--text-title)' }} className="hover-underline">{task.title}</p>
                         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                           {task.description.substring(0, 70)}...
+                        </p>
+                        <p style={{ fontSize: '0.72rem', color: 'var(--primary)', marginTop: '0.2rem', fontWeight: '700' }}>
+                          {task.taskCode || `task-${task.id}`}
                         </p>
                       </div>
                     </td>
@@ -336,9 +382,17 @@ ${submissionLines}
                     <td>
                       {task.status === 'active' ? (
                         <span className="badge badge-success">Đang chạy</span>
+                      ) : task.status === 'completed' ? (
+                        <span className="badge badge-success">Hoàn thành</span>
                       ) : (
                         <span className="badge badge-danger">Tạm dừng</span>
                       )}
+                    </td>
+                    <td>
+                      <span className={`badge ${lifecycle.badge}`}>{lifecycle.label}</span>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                        Nộp: {task.submissionCount || submissions.filter(s => s.taskId === task.id).length} · Hoạt động: {formatDateTime(task.lastActivityAt)}
+                      </p>
                     </td>
                     <td>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
@@ -380,7 +434,8 @@ ${submissionLines}
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -530,6 +585,40 @@ ${submissionLines}
               required
             />
           </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Mã task GitHub</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Ví dụ: task-103"
+                value={taskCode}
+                onChange={(e) => setTaskCode(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label>Repository GitHub</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="owner/repo"
+                value={githubRepo}
+                onChange={(e) => setGithubRepo(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Branch gợi ý</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Ví dụ: feature/task-103-api-spec"
+              value={githubBranch}
+              onChange={(e) => setGithubBranch(e.target.value)}
+            />
+          </div>
         </form>
       </Modal>
 
@@ -542,6 +631,8 @@ ${submissionLines}
         const rejectedSub = taskSubmissions.filter(s => s.status === 'rejected').length;
         const successRate = totalSub > 0 ? Math.round((approvedSub / totalSub) * 100) : 0;
         const totalPaid = approvedSub * viewingTaskDetails.reward;
+        const assignedCtv = collaborators.find(c => c.id === viewingTaskDetails.assignedCtvId);
+        const lifecycle = getTaskLifecycle(viewingTaskDetails);
 
         // Fallbacks if data properties are not defined
         const kpis = viewingTaskDetails.kpis || [
@@ -606,9 +697,10 @@ ${submissionLines}
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                     <span className="badge badge-info">{viewingTaskDetails.platform}</span>
-                    <span className="badge badge-primary" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)' }}>Quy mô: Lập trình</span>
+                    <span className={`badge ${lifecycle.badge}`}>{lifecycle.label}</span>
+                    <span className="badge badge-primary" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)' }}>{viewingTaskDetails.taskCode || `task-${viewingTaskDetails.id}`}</span>
                   </div>
                   <h3 style={{ fontSize: '1.35rem', fontWeight: '850', color: 'var(--text-title)', margin: 0, lineHeight: '1.4' }}>
                     {viewingTaskDetails.title}
@@ -730,6 +822,20 @@ ${submissionLines}
                 {/* Right Column - Timeline, Requirements & Submissions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   
+                  <div className="glass-card" style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                    <h4 style={{ fontSize: '0.85rem', color: 'var(--text-title)', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      🧭 Lifecycle & GitHub
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.65rem', fontSize: '0.8rem' }}>
+                      <div><span style={{ color: 'var(--text-muted)' }}>CTV nhận:</span><br /><strong>{assignedCtv?.name || 'Chưa có'}</strong></div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Số lần nộp:</span><br /><strong>{totalSub}</strong></div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Nhận lúc:</span><br /><strong>{formatDateTime(viewingTaskDetails.acceptedAt)}</strong></div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Hoạt động cuối:</span><br /><strong>{formatDateTime(viewingTaskDetails.lastActivityAt)}</strong></div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Repo:</span><br /><strong>{viewingTaskDetails.githubRepo || '—'}</strong></div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Branch:</span><br /><strong>{viewingTaskDetails.githubBranch || '—'}</strong></div>
+                    </div>
+                  </div>
+
                   {/* Section 4: Proof Submission Requirements */}
                   <div className="glass-card" style={{ padding: '1.25rem', background: 'rgba(99, 102, 241, 0.03)', border: '1px solid rgba(99, 102, 241, 0.15)', borderRadius: '8px' }}>
                     <h4 style={{ fontSize: '0.82rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>

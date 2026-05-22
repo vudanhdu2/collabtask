@@ -14,6 +14,9 @@ import submissionRoutes from './routes/submissions.js';
 import payoutRoutes from './routes/payouts.js';
 import webhookRoutes from './routes/webhook.js';
 import agentRoutes from './routes/agent.js';
+import ctvAgentRoutes from './routes/ctvAgent.js';
+import activityRoutes from './routes/activity.js';
+import notificationRoutes from './routes/notifications.js';
 
 dotenv.config();
 
@@ -41,6 +44,9 @@ app.use('/api/submissions', submissionRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/webhook/github', webhookRoutes);
 app.use('/api/agent', agentRoutes);
+app.use('/api/ctv-agent', ctvAgentRoutes);
+app.use('/api/activity', activityRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // API Download tài liệu hướng dẫn / điều khoản bảo mật bảo mật chống Directory Traversal
 app.get('/api/docs/download/:filename', (req, res) => {
@@ -96,11 +102,7 @@ const startServer = (port, retries = 5, delay = 1000) => {
       if (retries > 0) {
         console.warn(`[Server] Cổng ${port} đang bị chiếm dụng. Đang thử lại sau ${delay}ms... (Còn lại ${retries} lần thử)`);
         setTimeout(() => {
-          try {
-            server.close();
-          } catch (closeErr) {
-            // Đã đóng hoặc không thể đóng
-          }
+          server.close(() => {});
           startServer(port, retries - 1, delay);
         }, delay);
       } else {

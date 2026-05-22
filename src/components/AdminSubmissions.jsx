@@ -21,6 +21,10 @@ const AdminSubmissions = ({
   const [rejectingSubId, setRejectingSubId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+  const [revisionSubId, setRevisionSubId] = useState(null);
+  const [revisionReason, setRevisionReason] = useState('');
+
   // 1. Process Approval
   const handleApprove = async (submissionId) => {
     const sub = submissions.find(s => s.id === submissionId);
@@ -57,12 +61,38 @@ const AdminSubmissions = ({
       triggerToast('Đã từ chối báo cáo nhiệm vụ!', 'danger');
       if (onDataChange) onDataChange();
       setIsRejectModalOpen(false);
-      
+
       if (selectedSub && selectedSub.id === rejectingSubId) {
         setSelectedSub(null);
       }
     } catch (err) {
       triggerToast('Lỗi từ chối báo cáo: ' + err.message, 'danger');
+    }
+  };
+
+  const handleOpenRevisionModal = (submissionId) => {
+    setRevisionSubId(submissionId);
+    setRevisionReason('');
+    setIsRevisionModalOpen(true);
+  };
+
+  const handleConfirmRevision = async (e) => {
+    e.preventDefault();
+    if (!revisionReason.trim()) {
+      triggerToast('Vui lòng nhập nội dung cần CTV chỉnh sửa!', 'warning');
+      return;
+    }
+
+    try {
+      await api.submissions.requestRevision(revisionSubId, revisionReason.trim());
+      triggerToast('Đã gửi yêu cầu sửa bài cho CTV!', 'warning');
+      if (onDataChange) onDataChange();
+      setIsRevisionModalOpen(false);
+      if (selectedSub && selectedSub.id === revisionSubId) {
+        setSelectedSub(null);
+      }
+    } catch (err) {
+      triggerToast('Lỗi yêu cầu sửa bài: ' + err.message, 'danger');
     }
   };
 
@@ -108,11 +138,17 @@ const AdminSubmissions = ({
           >
             Chờ duyệt ({submissions.filter(s => s.status === 'pending').length})
           </button>
-          <button 
+          <button
             className={`tab-btn ${filterTab === 'approved' ? 'active' : ''}`}
             onClick={() => setFilterTab('approved')}
           >
             Đã duyệt
+          </button>
+          <button
+            className={`tab-btn ${filterTab === 'revision_requested' ? 'active' : ''}`}
+            onClick={() => setFilterTab('revision_requested')}
+          >
+            Cần sửa ({submissions.filter(s => s.status === 'revision_requested').length})
           </button>
           <button 
             className={`tab-btn ${filterTab === 'rejected' ? 'active' : ''}`}
@@ -206,6 +242,11 @@ const AdminSubmissions = ({
                       <td>
                         {sub.status === 'pending' && <span className="badge badge-warning">Chờ duyệt</span>}
                         {sub.status === 'approved' && <span className="badge badge-success">Đã duyệt</span>}
+                        {sub.status === 'revision_requested' && (
+                          <span className="badge badge-warning" title={sub.revisionReason}>
+                            Cần sửa
+                          </span>
+                        )}
                         {sub.status === 'rejected' && (
                           <span className="badge badge-danger" title={sub.rejectReason}>
                             Bị từ chối
@@ -234,7 +275,16 @@ const AdminSubmissions = ({
                                <Check size={14} style={{ color: 'var(--success)' }} />
                               </button>
                               
-                              <button 
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleOpenRevisionModal(sub.id)}
+                                title="Yêu cầu sửa bài"
+                                style={{ padding: '0.35rem 0.6rem' }}
+                              >
+                                <MessageSquare size={14} style={{ color: 'var(--warning)' }} />
+                              </button>
+
+                              <button
                                 className="btn btn-secondary btn-sm"
                                 onClick={() => handleOpenRejectModal(sub.id)}
                                 title="Từ chối báo cáo"
@@ -272,6 +322,9 @@ const AdminSubmissions = ({
                 </button>
                 {selectedSub.status === 'pending' && (
                   <>
+                    <button className="btn btn-warning" onClick={() => handleOpenRevisionModal(selectedSub.id)}>
+                      Yêu cầu sửa
+                    </button>
                     <button className="btn btn-danger" onClick={() => handleOpenRejectModal(selectedSub.id)}>
                       Từ chối
                     </button>
@@ -331,12 +384,37 @@ const AdminSubmissions = ({
                 </div>
               )}
 
+              {selectedSub.revisionReason && (
+                <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--warning-bg)', padding: '0.75rem', borderRadius: 'var(--border-radius-sm)', color: 'var(--warning)' }}>
+                  <MessageSquare size={18} style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong style={{ fontSize: '0.8rem', display: 'block' }}>Nội dung cần sửa:</strong>
+                    <p style={{ fontSize: '0.85rem', marginTop: '0.15rem' }}>{selectedSub.revisionReason}</p>
+                  </div>
+                </div>
+              )}
+
               {selectedSub.rejectReason && (
                 <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--danger-bg)', padding: '0.75rem', borderRadius: 'var(--border-radius-sm)', color: 'var(--danger)' }}>
                   <AlertCircle size={18} style={{ flexShrink: 0 }} />
                   <div>
                     <strong style={{ fontSize: '0.8rem', display: 'block' }}>Lý do từ chối trước đó:</strong>
                     <p style={{ fontSize: '0.85rem', marginTop: '0.15rem' }}>{selectedSub.rejectReason}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedSub.reviewHistory?.length > 0 && (
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>Lịch sử xử lý</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {selectedSub.reviewHistory.map((item, index) => (
+                      <div key={`${item.createdAt}-${index}`} style={{ background: 'var(--input-bg)', padding: '0.65rem', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}>
+                        <strong style={{ fontSize: '0.8rem', color: 'var(--text-title)' }}>{item.action}</strong>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-main)', marginTop: '0.15rem' }}>{item.note}</p>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(item.createdAt).toLocaleString('vi-VN')}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -367,6 +445,37 @@ const AdminSubmissions = ({
           </Modal>
         );
       })()}
+
+      <Modal
+        isOpen={isRevisionModalOpen}
+        onClose={() => setIsRevisionModalOpen(false)}
+        title="Yêu cầu CTV sửa báo cáo"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setIsRevisionModalOpen(false)}>
+              Hủy
+            </button>
+            <button className="btn btn-warning" onClick={handleConfirmRevision}>
+              Gửi yêu cầu sửa
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleConfirmRevision}>
+          <div className="form-group">
+            <label>Nội dung cần chỉnh sửa *</label>
+            <textarea
+              className="form-control"
+              placeholder="Ví dụ: PR còn thiếu test case cho luồng lỗi, vui lòng bổ sung và nộp lại link PR sau khi cập nhật."
+              value={revisionReason}
+              onChange={(e) => setRevisionReason(e.target.value)}
+              rows="4"
+              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+              required
+            />
+          </div>
+        </form>
+      </Modal>
 
       {/* Reject Reason input Modal */}
       <Modal

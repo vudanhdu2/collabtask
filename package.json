@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev:client": "vite",
-    "dev:server": "node --watch server/index.js",
+    "dev:server": "node -e \"process.env.PORT='3001'; import('./server/index.js')\"",
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "build": "vite build",
     "start": "node server/index.js",

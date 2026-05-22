@@ -30,7 +30,7 @@ export const verifyToken = (req, res, next) => {
     }
     
     next();
-  } catch (err) {
+  } catch {
     return res.status(403).json({ message: 'Mã token hết hạn hoặc không hợp lệ.' });
   }
 };

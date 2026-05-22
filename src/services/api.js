@@ -17,14 +17,14 @@ const request = async (url, options = {}) => {
     headers,
   });
 
-  let data = {};
+  let data;
   const contentType = response.headers.get('content-type');
   if (contentType && contentType.includes('application/json')) {
     try {
       data = await response.json();
     } catch (err) {
       console.error('Lỗi parse JSON phản hồi:', err);
-      throw new Error('Phản hồi từ Server không đúng định dạng JSON hợp lệ.');
+      throw new Error('Phản hồi từ Server không đúng định dạng JSON hợp lệ.', { cause: err });
     }
   } else {
     const text = await response.text();
@@ -92,6 +92,7 @@ export const api = {
     create: (data) => post('/submissions', data),
     approve: (id) => patch(`/submissions/${id}/approve`, {}),
     reject: (id, rejectReason) => patch(`/submissions/${id}/reject`, { rejectReason }),
+    requestRevision: (id, revisionReason) => patch(`/submissions/${id}/request-revision`, { revisionReason }),
   },
 
   // Payouts (Rút tiền) APIs
@@ -100,11 +101,22 @@ export const api = {
     create: (data) => post('/payouts', data),
     pay: (id, transactionId) => patch(`/payouts/${id}/pay`, { transactionId }),
     reject: (id, rejectReason) => patch(`/payouts/${id}/reject`, { rejectReason }),
+    transactions: () => get('/payouts/transactions'),
   },
 
   // Webhook Logs API
   webhook: {
     getLogs: () => get('/webhook/github/logs'),
+  },
+
+  activity: {
+    list: () => get('/activity'),
+  },
+
+  notifications: {
+    list: () => get('/notifications'),
+    markRead: (id) => patch(`/notifications/${id}/read`, {}),
+    markAllRead: () => patch('/notifications/read-all', {}),
   },
 
   // Documents API
@@ -124,9 +136,11 @@ export const api = {
       if (!response.ok) {
         let errorMsg = 'Tải tài liệu thất bại.';
         try {
-          const data = await response.json();
-          errorMsg = data.message || errorMsg;
-        } catch (e) {}
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch {
+          errorMsg = response.statusText || errorMsg;
+        }
         throw new Error(errorMsg);
       }
 

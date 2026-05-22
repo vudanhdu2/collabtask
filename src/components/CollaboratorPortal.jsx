@@ -57,6 +57,7 @@ const CollaboratorPortal = ({
   const [accountNumber, setAccountNumber] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [transactions, setTransactions] = useState([]);
 
   // Guide & Terms Tab States
   const [activeAccordion, setActiveAccordion] = useState(0); // Default to Article 1 expanded
@@ -99,6 +100,14 @@ const CollaboratorPortal = ({
     }
   }, [activeTab, collaborators]);
 
+  useEffect(() => {
+    if (activeTab === 'my-wallet') {
+      api.payouts.transactions()
+        .then(setTransactions)
+        .catch(() => setTransactions([]));
+    }
+  }, [activeTab]);
+
   const handleCopyCode = (code, index) => {
     navigator.clipboard.writeText(code);
     setCopiedIndex(index);
@@ -106,6 +115,17 @@ const CollaboratorPortal = ({
       setCopiedIndex(null);
     }, 2000);
     triggerToast('Đã sao chép câu lệnh Git vào bộ nhớ tạm!', 'success');
+  };
+
+  const getTaskLifecycle = (task, mySub) => {
+    const overdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
+    if (task.status === 'completed' || mySub?.status === 'approved') return { label: 'Hoàn thành', badge: 'badge-success' };
+    if (mySub?.status === 'revision_requested') return { label: 'Cần sửa', badge: 'badge-warning' };
+    if (mySub?.status === 'pending') return { label: 'Chờ duyệt', badge: 'badge-warning' };
+    if (overdue) return { label: 'Quá hạn', badge: 'badge-danger' };
+    if (task.assignedCtvId === currentCtv?.id) return { label: 'Đang làm', badge: 'badge-info' };
+    if (task.assignedCtvId !== null && task.assignedCtvId !== undefined) return { label: 'Đã có người nhận', badge: 'badge-secondary' };
+    return { label: 'Chưa nhận', badge: 'badge-secondary' };
   };
 
   const handleKpiToggle = (key) => {
@@ -184,8 +204,8 @@ const CollaboratorPortal = ({
     if (!task) return;
     const { kpis, techReqs, instructions, mySub } = computed;
 
-    const subStatusStr = mySub 
-      ? (mySub.status === 'approved' ? 'Đã hoàn thành & giải ngân' : mySub.status === 'pending' ? 'Đang chờ duyệt' : 'Bị từ chối')
+    const subStatusStr = mySub
+      ? (mySub.status === 'approved' ? 'Đã hoàn thành & giải ngân' : mySub.status === 'pending' ? 'Đang chờ duyệt' : mySub.status === 'revision_requested' ? 'Cần sửa bài' : 'Bị từ chối')
       : 'Chưa nộp báo cáo';
 
     const mySubSection = mySub ? `
@@ -194,6 +214,7 @@ const CollaboratorPortal = ({
 - **Thời gian nộp:** ${new Date(mySub.submittedAt).toLocaleString('vi-VN')}
 - **GitHub PR Link:** ${mySub.proofUrl}
 ${mySub.proofText ? `- **Ghi chú CTV:** "${mySub.proofText}"` : ''}
+${mySub.revisionReason ? `- **Yêu cầu sửa:** "${mySub.revisionReason}"` : ''}
 ${mySub.rejectReason ? `- **Lý do từ chối:** "${mySub.rejectReason}"` : ''}
 ` : `
 ## 7. Trạng thái báo cáo của bạn
@@ -254,9 +275,10 @@ ${mySubSection}
 
   // 1. Task Submission logic
   const handleOpenSubmitModal = (task) => {
+    const revisionSub = mySubmissions.find(s => s.taskId === task.id && s.status === 'revision_requested');
     setSubmittingTask(task);
-    setProofUrl('');
-    setProofText('');
+    setProofUrl(revisionSub?.proofUrl || '');
+    setProofText(revisionSub?.proofText || '');
   };
 
   const handleTaskSubmit = async (e) => {
@@ -326,12 +348,17 @@ ${mySubSection}
   };
 
   // Filter lists based on selected CTV
-  const mySubmissions = submissions.filter(s => s.ctvId === currentCtv.id);
-  const myPayouts = payouts.filter(p => p.ctvId === currentCtv.id);
-  
+  const mySubmissions = currentCtv ? submissions.filter(s => s.ctvId === currentCtv.id) : [];
+  const myPayouts = currentCtv ? payouts.filter(p => p.ctvId === currentCtv.id) : [];
+
+  if (!currentCtv) {
+    return null;
+  }
+
   // Calculate specific stats
   const completedCount = mySubmissions.filter(s => s.status === 'approved').length;
   const pendingCount = mySubmissions.filter(s => s.status === 'pending').length;
+  const revisionCount = mySubmissions.filter(s => s.status === 'revision_requested').length;
   const rejectedCount = mySubmissions.filter(s => s.status === 'rejected').length;
   
   const totalEarnings = mySubmissions
@@ -462,10 +489,10 @@ ${mySubSection}
             <Hourglass size={24} />
           </div>
           <div className="kpi-content">
-            <p className="kpi-label">Đang Chờ Duyệt</p>
-            <h3 className="kpi-value">{pendingCount} việc</h3>
+            <p className="kpi-label">Đang Chờ / Cần Sửa</p>
+            <h3 className="kpi-value">{pendingCount + revisionCount} việc</h3>
             <span className="kpi-trend" style={{ color: 'var(--warning)' }}>
-              Đang chờ Admin chấm điểm
+              {revisionCount > 0 ? `${revisionCount} việc cần sửa` : 'Đang chờ Admin chấm điểm'}
             </span>
           </div>
         </div>
@@ -535,6 +562,7 @@ ${mySubSection}
                     </div>
                     <div>
                       {sub.status === 'pending' && <span className="badge badge-warning">Chờ duyệt</span>}
+                      {sub.status === 'revision_requested' && <span className="badge badge-warning">Cần sửa</span>}
                       {sub.status === 'approved' && <span className="badge badge-success">+{sub.reward.toLocaleString()}đ</span>}
                       {sub.status === 'rejected' && <span className="badge badge-danger">Từ chối</span>}
                     </div>
@@ -755,7 +783,10 @@ ${mySubSection}
             </div>
           ) : (
             activeTasks.map((task) => {
+              const mySub = mySubmissions.find(s => s.taskId === task.id);
+              const lifecycle = getTaskLifecycle(task, mySub);
               const hasSubmitted = mySubmissions.some(s => s.taskId === task.id && s.status === 'pending');
+              const hasRevisionRequested = mySubmissions.some(s => s.taskId === task.id && s.status === 'revision_requested');
               const hasApproved = mySubmissions.some(s => s.taskId === task.id && s.status === 'approved');
               const hasRejected = mySubmissions.some(s => s.taskId === task.id && s.status === 'rejected');
 
@@ -781,9 +812,12 @@ ${mySubSection}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                       <span className="badge badge-info">{task.platform}</span>
-                      {isAssignedToMe && (
-                        <span className="badge badge-success" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '0.72rem' }}>
-                          Đang làm
+                      <span className={`badge ${lifecycle.badge}`} style={{ fontSize: '0.72rem' }}>
+                        {lifecycle.label}
+                      </span>
+                      {hasRevisionRequested && (
+                        <span className="badge badge-warning" style={{ fontSize: '0.72rem' }}>
+                          Cần sửa
                         </span>
                       )}
                       {isAssignedToOther && (
@@ -814,8 +848,8 @@ ${mySubSection}
                       alignItems: 'center' 
                     }}
                   >
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Hạn: {new Date(task.deadline).toLocaleDateString('vi-VN')}
+                    <span style={{ fontSize: '0.75rem', color: lifecycle.label === 'Quá hạn' ? 'var(--danger)' : 'var(--text-muted)' }}>
+                      Hạn: {new Date(task.deadline).toLocaleDateString('vi-VN')} · {task.submissionCount || 0} lượt nộp
                     </span>
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
@@ -942,20 +976,25 @@ ${mySubSection}
                     </td>
                     <td>
                       {sub.status === 'pending' && <span className="badge badge-warning">Chờ duyệt</span>}
+                      {sub.status === 'revision_requested' && <span className="badge badge-warning">Cần sửa</span>}
                       {sub.status === 'approved' && <span className="badge badge-success">Thành công</span>}
                       {sub.status === 'rejected' && <span className="badge badge-danger">Bị từ chối</span>}
                     </td>
                     <td>
-                      {sub.status === 'rejected' ? (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--danger)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                          <span>Lý do: <strong>{sub.rejectReason}</strong></span>
-                          <button 
-                            className="btn btn-secondary btn-sm" 
+                      {sub.status === 'revision_requested' ? (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--warning)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <span>Cần sửa: <strong>{sub.revisionReason}</strong></span>
+                          <button
+                            className="btn btn-secondary btn-sm"
                             onClick={() => handleOpenSubmitModal(task)}
                             style={{ alignSelf: 'flex-start', padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
                           >
                             Nộp lại
                           </button>
+                        </div>
+                      ) : sub.status === 'rejected' ? (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--danger)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <span>Lý do: <strong>{sub.rejectReason}</strong></span>
                         </div>
                       ) : sub.status === 'approved' ? (
                         <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>Đã cộng tiền</span>
@@ -1051,6 +1090,47 @@ ${mySubSection}
             <span>Gửi yêu cầu thanh toán</span>
           </button>
         </form>
+      </div>
+
+      <div className="glass-card" style={{ gridColumn: '1 / -1' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+          <Wallet size={20} style={{ color: 'var(--primary)' }} />
+          <h3 style={{ fontSize: '1.1rem' }}>Lịch sử ví</h3>
+        </div>
+        <div className="table-responsive">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Loại giao dịch</th>
+                <th>Số tiền</th>
+                <th>Số dư sau GD</th>
+                <th>Nội dung</th>
+                <th>Thời gian</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.length === 0 ? (
+                <tr>
+                  <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                    Chưa có bút toán ví nào được ghi nhận.
+                  </td>
+                </tr>
+              ) : (
+                transactions.map((tx) => (
+                  <tr key={tx.id}>
+                    <td><span className="badge badge-info">{tx.type}</span></td>
+                    <td style={{ fontWeight: '700', color: tx.amount >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                      {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()}đ
+                    </td>
+                    <td>{tx.balanceAfter !== null ? `${tx.balanceAfter.toLocaleString()}đ` : '—'}</td>
+                    <td style={{ fontSize: '0.82rem' }}>{tx.description}</td>
+                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{new Date(tx.createdAt).toLocaleString('vi-VN')}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Payouts History list */}
@@ -2058,6 +2138,14 @@ ${mySubSection}
             >
               <h4 style={{ fontSize: '0.9rem', color: 'var(--text-title)', marginBottom: '0.25rem' }}>{submittingTask.title}</h4>
               <p>Phần thưởng: <strong style={{ color: 'var(--success)' }}>{submittingTask.reward.toLocaleString()}đ</strong></p>
+              {mySubmissions.find(s => s.taskId === submittingTask.id && s.status === 'revision_requested') && (
+                <div style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: 'var(--border-radius-sm)', background: 'var(--warning-bg)', color: 'var(--warning)' }}>
+                  <strong style={{ fontSize: '0.8rem' }}>Yêu cầu sửa từ Admin:</strong>
+                  <p style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                    {mySubmissions.find(s => s.taskId === submittingTask.id && s.status === 'revision_requested')?.revisionReason}
+                  </p>
+                </div>
+              )}
               <p style={{ marginTop: '0.5rem', whiteSpace: 'pre-line', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 <strong>Yêu cầu bằng chứng:</strong><br />
                 {submittingTask.requirements}
@@ -2156,7 +2244,9 @@ ${mySubSection}
         const mySub = mySubmissions.find(s => s.taskId === selectedTaskDetails.id);
         const hasApproved = mySub && mySub.status === 'approved';
         const hasPending = mySub && mySub.status === 'pending';
+        const hasRevisionRequested = mySub && mySub.status === 'revision_requested';
         const hasRejected = mySub && mySub.status === 'rejected';
+        const lifecycle = getTaskLifecycle(selectedTaskDetails, mySub);
 
         const isAssignedToMe = selectedTaskDetails.assignedCtvId === currentCtv.id;
         const isAssignedToOther = selectedTaskDetails.assignedCtvId !== null && selectedTaskDetails.assignedCtvId !== undefined && selectedTaskDetails.assignedCtvId !== currentCtv.id;
@@ -2210,7 +2300,7 @@ ${mySubSection}
 
                 {isAssignedToMe && (
                   <>
-                    {!hasApproved && !hasPending && (
+                    {!hasApproved && !hasPending && !hasRevisionRequested && (
                       <button 
                         className="btn" 
                         style={{ 
@@ -2226,7 +2316,7 @@ ${mySubSection}
                         Hủy nhận
                       </button>
                     )}
-                    {!hasApproved && !hasPending && (
+                    {!hasApproved && !hasPending && !hasRevisionRequested && (
                       <button 
                         className="btn btn-primary" 
                         onClick={() => {
@@ -2260,7 +2350,8 @@ ${mySubSection}
                 <div>
                   <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                     <span className="badge badge-info">{selectedTaskDetails.platform}</span>
-                    <span className="badge badge-primary" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)' }}>Quy mô: Lập trình</span>
+                    <span className={`badge ${lifecycle.badge}`}>{lifecycle.label}</span>
+                    <span className="badge badge-primary" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)' }}>{selectedTaskDetails.taskCode || `task-${selectedTaskDetails.id}`}</span>
                   </div>
                   <h3 style={{ fontSize: '1.35rem', fontWeight: '850', color: 'var(--text-title)', margin: 0, lineHeight: '1.4' }}>
                     {selectedTaskDetails.title}
@@ -2382,6 +2473,18 @@ ${mySubSection}
                 {/* Right Column - Timeline, Requirements & Submissions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   
+                  <div className="glass-card" style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                    <h4 style={{ fontSize: '0.85rem', color: 'var(--text-title)', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      🧭 Tiến độ nhiệm vụ
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.65rem', fontSize: '0.8rem' }}>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Trạng thái:</span><br /><strong>{lifecycle.label}</strong></div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Số lần nộp:</span><br /><strong>{selectedTaskDetails.submissionCount || 0}</strong></div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Nhận lúc:</span><br /><strong>{selectedTaskDetails.acceptedAt ? new Date(selectedTaskDetails.acceptedAt).toLocaleString('vi-VN') : '—'}</strong></div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Hoạt động cuối:</span><br /><strong>{selectedTaskDetails.lastActivityAt ? new Date(selectedTaskDetails.lastActivityAt).toLocaleString('vi-VN') : '—'}</strong></div>
+                    </div>
+                  </div>
+
                   {/* Section 4: Proof Submission Requirements */}
                   <div className="glass-card" style={{ padding: '1.25rem', background: 'rgba(99, 102, 241, 0.03)', border: '1px solid rgba(99, 102, 241, 0.15)', borderRadius: '8px' }}>
                     <h4 style={{ fontSize: '0.82rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -2462,6 +2565,7 @@ ${mySubSection}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
                           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Trạng thái:</span>
                           {mySub.status === 'pending' && <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>Đang chờ duyệt</span>}
+                          {mySub.status === 'revision_requested' && <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>Cần sửa bài</span>}
                           {mySub.status === 'approved' && <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>Đã giải ngân ví</span>}
                           {mySub.status === 'rejected' && <span className="badge badge-danger" style={{ fontSize: '0.7rem' }}>Bị từ chối</span>}
                         </div>
@@ -2478,22 +2582,22 @@ ${mySubSection}
                           </p>
                         )}
 
-                        {mySub.status === 'rejected' && (
-                          <div 
-                            style={{ 
-                              marginTop: '0.75rem', 
-                              padding: '0.75rem', 
-                              background: 'var(--danger-bg)', 
-                              borderRadius: '6px', 
-                              border: '1px solid rgba(239, 68, 68, 0.2)' 
+                        {mySub.status === 'revision_requested' && (
+                          <div
+                            style={{
+                              marginTop: '0.75rem',
+                              padding: '0.75rem',
+                              background: 'var(--warning-bg)',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(245, 158, 11, 0.2)'
                             }}
                           >
-                            <p style={{ fontSize: '0.78rem', color: 'var(--danger)', margin: 0, lineHeight: '1.4' }}>
-                              <strong>Lý do từ chối phản hồi từ Admin:</strong> <br />
-                              <span style={{ fontWeight: '600', marginTop: '0.15rem', display: 'inline-block' }}>{mySub.rejectReason}</span>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--warning)', margin: 0, lineHeight: '1.4' }}>
+                              <strong>Admin yêu cầu chỉnh sửa:</strong> <br />
+                              <span style={{ fontWeight: '600', marginTop: '0.15rem', display: 'inline-block' }}>{mySub.revisionReason}</span>
                             </p>
-                            <button 
-                              className="btn btn-secondary btn-sm" 
+                            <button
+                              className="btn btn-secondary btn-sm"
                               style={{ marginTop: '0.6rem', width: '100%', fontSize: '0.72rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
                               onClick={() => {
                                 const task = selectedTaskDetails;
@@ -2502,8 +2606,25 @@ ${mySubSection}
                               }}
                             >
                               <Send size={11} />
-                              <span>Nộp lại báo cáo sửa đổi</span>
+                              <span>Nộp lại báo cáo đã sửa</span>
                             </button>
+                          </div>
+                        )}
+
+                        {mySub.status === 'rejected' && (
+                          <div
+                            style={{
+                              marginTop: '0.75rem',
+                              padding: '0.75rem',
+                              background: 'var(--danger-bg)',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(239, 68, 68, 0.2)'
+                            }}
+                          >
+                            <p style={{ fontSize: '0.78rem', color: 'var(--danger)', margin: 0, lineHeight: '1.4' }}>
+                              <strong>Lý do từ chối phản hồi từ Admin:</strong> <br />
+                              <span style={{ fontWeight: '600', marginTop: '0.15rem', display: 'inline-block' }}>{mySub.rejectReason}</span>
+                            </p>
                           </div>
                         )}
                       </div>

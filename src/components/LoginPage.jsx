@@ -16,6 +16,11 @@ const LoginPage = ({ onLoginSuccess, triggerToast }) => {
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regGithub, setRegGithub] = useState('');
+  const [regSkills, setRegSkills] = useState('');
+  const [regPortfolio, setRegPortfolio] = useState('');
+  const [regBio, setRegBio] = useState('');
+  const [regPreferredPlatforms, setRegPreferredPlatforms] = useState('');
+  const [regAvailability, setRegAvailability] = useState('');
   
   const [loading, setLoading] = useState(false);
 
@@ -55,7 +60,12 @@ const LoginPage = ({ onLoginSuccess, triggerToast }) => {
         name: regName,
         phone: regPhone,
         email: regEmail,
-        githubUsername: regGithub
+        githubUsername: regGithub,
+        skills: regSkills,
+        portfolioUrl: regPortfolio,
+        bio: regBio,
+        preferredPlatforms: regPreferredPlatforms,
+        availability: regAvailability
       });
       triggerToast(res.message || 'Đăng ký CTV thành công!', 'success');
       
@@ -330,6 +340,71 @@ const LoginPage = ({ onLoginSuccess, triggerToast }) => {
                 disabled={loading}
               />
               <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>Phục vụ tính năng tự động liên kết và theo dõi realtime tiến độ trên Github.</span>
+            </div>
+
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontWeight: '500' }}>Kỹ năng chính</label>
+              <input
+                type="text"
+                placeholder="React, NodeJS, Viết content, Thiết kế UI"
+                className="form-control"
+                style={{ height: '38px', fontSize: '0.82rem' }}
+                value={regSkills}
+                onChange={(e) => setRegSkills(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontWeight: '500' }}>Portfolio URL</label>
+              <input
+                type="url"
+                placeholder="https://github.com/username"
+                className="form-control"
+                style={{ height: '38px', fontSize: '0.82rem' }}
+                value={regPortfolio}
+                onChange={(e) => setRegPortfolio(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontWeight: '500' }}>Nền tảng muốn nhận</label>
+              <input
+                type="text"
+                placeholder="GitHub / React, NodeJS, Markdown"
+                className="form-control"
+                style={{ height: '38px', fontSize: '0.82rem' }}
+                value={regPreferredPlatforms}
+                onChange={(e) => setRegPreferredPlatforms(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontWeight: '500' }}>Thời gian có thể làm việc</label>
+              <input
+                type="text"
+                placeholder="Ví dụ: 20h/tuần, buổi tối, cuối tuần"
+                className="form-control"
+                style={{ height: '38px', fontSize: '0.82rem' }}
+                value={regAvailability}
+                onChange={(e) => setRegAvailability(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontWeight: '500' }}>Giới thiệu ngắn</label>
+              <textarea
+                placeholder="Tóm tắt kinh nghiệm, dự án đã làm, điểm mạnh của bạn..."
+                className="form-control"
+                rows="3"
+                style={{ fontSize: '0.82rem', resize: 'vertical' }}
+                value={regBio}
+                onChange={(e) => setRegBio(e.target.value)}
+                disabled={loading}
+              />
             </div>
 
             <button

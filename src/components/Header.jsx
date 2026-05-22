@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Sun, 
   Moon, 
@@ -6,8 +6,11 @@ import {
   Shield, 
   Users, 
   ChevronDown,
-  Wallet
+  Wallet,
+  Bell,
+  Check
 } from 'lucide-react';
+import { api } from '../services/api';
 
 const Header = ({ 
   currentRole, 
@@ -20,9 +23,14 @@ const Header = ({
   sidebarOpen, 
   setSidebarOpen,
   activeTab,
-  setActiveTab
+  setActiveTab,
+  notifications = [],
+  setNotifications,
+  onDataChange
 }) => {
+  const [showNotifications, setShowNotifications] = useState(false);
   const currentCtv = collaborators.find(c => c.id === selectedCollaborator) || collaborators[0];
+  const unreadCount = notifications.filter(n => !n.readAt).length;
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
@@ -39,6 +47,23 @@ const Header = ({
     }
   };
 
+  const handleMarkAllNotificationsRead = async () => {
+    await api.notifications.markAllRead();
+    setNotifications?.(notifications.map(n => ({ ...n, readAt: n.readAt || new Date().toISOString() })));
+    if (onDataChange) onDataChange();
+  };
+
+  const handleNotificationClick = async (notification) => {
+    if (!notification.readAt) {
+      await api.notifications.markRead(notification.id);
+      setNotifications?.(notifications.map(n => n.id === notification.id ? { ...n, readAt: new Date().toISOString() } : n));
+    }
+    if (notification.entityType === 'submission') setActiveTab(currentRole === 'admin' ? 'submissions' : 'my-submissions');
+    if (notification.entityType === 'payout') setActiveTab(currentRole === 'admin' ? 'payouts' : 'my-wallet');
+    if (notification.entityType === 'task') setActiveTab(currentRole === 'admin' ? 'tasks' : 'my-tasks');
+    setShowNotifications(false);
+  };
+
   // Humanize title based on activeTab
   const getTabTitle = () => {
     switch (activeTab) {
@@ -51,6 +76,7 @@ const Header = ({
       case 'my-tasks': return 'Bảng nhận nhiệm vụ';
       case 'my-submissions': return 'Lịch sử báo cáo đã nộp';
       case 'my-wallet': return 'Ví tiền & Yêu cầu rút tiền';
+      case 'ctv-agent-api': return 'Cổng API AI Agent';
       default: return 'Hệ thống Quản lý CTV';
     }
   };
@@ -131,6 +157,126 @@ const Header = ({
             </div>
           </div>
         )}
+
+        <div style={{ position: 'relative' }}>
+          <button
+            className="theme-toggle-btn"
+            onClick={() => setShowNotifications(!showNotifications)}
+            title="Thông báo"
+            style={{ position: 'relative' }}
+          >
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-5px',
+                right: '-5px',
+                minWidth: '18px',
+                height: '18px',
+                padding: '0 5px',
+                borderRadius: '9999px',
+                background: 'var(--danger)',
+                color: '#fff',
+                fontSize: '0.65rem',
+                fontWeight: '800',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid var(--bg-main)'
+              }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {showNotifications && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 0.75rem)',
+              right: 0,
+              width: '340px',
+              maxWidth: 'calc(100vw - 2rem)',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '1rem',
+              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.22)',
+              zIndex: 30,
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                padding: '0.9rem 1rem',
+                borderBottom: '1px solid var(--border-color)'
+              }}>
+                <div>
+                  <div style={{ fontWeight: '800', color: 'var(--text-title)' }}>Thông báo</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{unreadCount} chưa đọc</div>
+                </div>
+                {notifications.length > 0 && (
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleMarkAllNotificationsRead}
+                    style={{ padding: '0.45rem 0.65rem', fontSize: '0.75rem' }}
+                  >
+                    <Check size={14} />
+                    Đã đọc
+                  </button>
+                )}
+              </div>
+
+              <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '1.25rem', color: 'var(--text-muted)', textAlign: 'center', fontSize: '0.9rem' }}>
+                    Chưa có thông báo mới.
+                  </div>
+                ) : notifications.slice(0, 10).map(notification => (
+                  <button
+                    key={notification.id}
+                    onClick={() => handleNotificationClick(notification)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '0.9rem 1rem',
+                      border: 0,
+                      borderBottom: '1px solid var(--border-color)',
+                      background: notification.readAt ? 'transparent' : 'var(--bg-card-hover)',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      display: 'block'
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
+                      {!notification.readAt && (
+                        <span style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: 'var(--primary)',
+                          marginTop: '0.35rem',
+                          flexShrink: 0
+                        }} />
+                      )}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: '800', color: 'var(--text-title)', fontSize: '0.88rem' }}>
+                          {notification.title}
+                        </div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.25rem', lineHeight: 1.45 }}>
+                          {notification.message}
+                        </div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: '0.45rem' }}>
+                          {new Date(notification.createdAt).toLocaleString('vi-VN')}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Dynamic switcher between Admin and Collaborator simulated views */}
         <button className="role-switcher-btn" onClick={handleRoleToggle}>

@@ -36,7 +36,12 @@
       "githubUsername": "hoang-nv-dev",
       "joinedAt": "2026-05-01T08:00:00Z",
       "exp": 600,
-      "level": 2
+      "level": 2,
+      "skills": [],
+      "portfolioUrl": "",
+      "bio": "",
+      "preferredPlatforms": [],
+      "availability": ""
     },
     {
       "id": 2,
@@ -47,8 +52,13 @@
       "status": "active",
       "githubUsername": "tranthimai",
       "joinedAt": "2026-05-05T09:30:00Z",
-      "exp": 250,
-      "level": 1
+      "exp": 350,
+      "level": 1,
+      "skills": [],
+      "portfolioUrl": "",
+      "bio": "",
+      "preferredPlatforms": [],
+      "availability": ""
     },
     {
       "id": 3,
@@ -60,7 +70,12 @@
       "githubUsername": "namlh-coder",
       "joinedAt": "2026-05-15T14:20:00Z",
       "exp": 0,
-      "level": 1
+      "level": 1,
+      "skills": [],
+      "portfolioUrl": "",
+      "bio": "",
+      "preferredPlatforms": [],
+      "availability": ""
     },
     {
       "id": 4,
@@ -72,7 +87,12 @@
       "githubUsername": "ducpm-suspend",
       "joinedAt": "2026-05-10T10:15:00Z",
       "exp": 0,
-      "level": 1
+      "level": 1,
+      "skills": [],
+      "portfolioUrl": "",
+      "bio": "",
+      "preferredPlatforms": [],
+      "availability": ""
     }
   ],
   "tasks": [
@@ -181,7 +201,7 @@
       "description": "Soạn thảo tài liệu mô tả chi tiết tất cả các endpoints REST API của hệ thống (request body, response format) bằng tiếng Việt dạng Markdown.",
       "requirements": "File README.md hoặc API.md được đóng góp thông qua Pull Request.",
       "deadline": "2026-06-10",
-      "status": "active",
+      "status": "completed",
       "createdAt": "2026-05-14T11:00:00Z",
       "kpis": [
         "100% các API Endpoints được mô tả đầy đủ: Request Headers, Body, Params và Responses mẫu.",
@@ -369,7 +389,11 @@
       "status": "approved",
       "rejectReason": "",
       "submittedAt": "2026-05-15T09:00:00Z",
-      "reviewedAt": "2026-05-16T10:00:00Z"
+      "reviewedAt": "2026-05-16T10:00:00Z",
+      "revisionReason": "",
+      "revisionRequestedAt": null,
+      "revisionSubmittedAt": null,
+      "reviewHistory": []
     },
     {
       "id": 202,
@@ -381,7 +405,11 @@
       "status": "approved",
       "rejectReason": "",
       "submittedAt": "2026-05-18T14:30:00Z",
-      "reviewedAt": "2026-05-19T09:15:00Z"
+      "reviewedAt": "2026-05-19T09:15:00Z",
+      "revisionReason": "",
+      "revisionRequestedAt": null,
+      "revisionSubmittedAt": null,
+      "reviewHistory": []
     },
     {
       "id": 203,
@@ -393,22 +421,59 @@
       "status": "approved",
       "rejectReason": "",
       "submittedAt": "2026-05-16T16:00:00Z",
-      "reviewedAt": "2026-05-17T11:00:00Z"
+      "reviewedAt": "2026-05-17T11:00:00Z",
+      "revisionReason": "",
+      "revisionRequestedAt": null,
+      "revisionSubmittedAt": null,
+      "reviewHistory": []
     },
     {
       "id": 204,
       "ctvId": 2,
       "taskId": 103,
       "reward": 100000,
-      "proofUrl": "https://github.com/tranthimai/aihot-vn/blob/docs/API.md",
-      "proofText": "Đã cập nhật file API.md chi tiết toàn bộ endpoint kèm mã trạng thái HTTP status code.",
-      "status": "pending",
+      "proofUrl": "https://github.com/example/pr-revised",
+      "proofText": "Đã bổ sung test case theo feedback.",
+      "status": "approved",
       "rejectReason": "",
       "submittedAt": "2026-05-20T10:00:00Z",
-      "reviewedAt": null
+      "reviewedAt": "2026-05-22T11:32:08.448Z",
+      "revisionReason": "Bổ sung test case và cập nhật lại link PR.",
+      "revisionRequestedAt": "2026-05-22T11:32:08.400Z",
+      "revisionSubmittedAt": "2026-05-22T11:32:08.447Z",
+      "reviewHistory": [
+        {
+          "action": "revision_requested",
+          "note": "Bổ sung test case và cập nhật lại link PR.",
+          "createdAt": "2026-05-22T11:32:08.400Z"
+        },
+        {
+          "action": "resubmitted",
+          "note": "Đã bổ sung test case theo feedback.",
+          "createdAt": "2026-05-22T11:32:08.447Z"
+        },
+        {
+          "action": "approved",
+          "note": "Duyệt báo cáo, cộng 100.000đ vào ví CTV.",
+          "createdAt": "2026-05-22T11:32:08.448Z"
+        }
+      ]
     }
   ],
   "payouts": [
+    {
+      "id": 303,
+      "ctvId": 2,
+      "amount": 100000,
+      "bankName": "Techcombank",
+      "accountNumber": "123456789",
+      "accountHolder": "TRAN THI MAI",
+      "status": "paid",
+      "rejectReason": "",
+      "transactionId": "TESTTX123",
+      "requestedAt": "2026-05-22T11:32:22.989Z",
+      "resolvedAt": "2026-05-22T11:32:22.992Z"
+    },
     {
       "id": 301,
       "ctvId": 1,
@@ -435,5 +500,85 @@
       "requestedAt": "2026-05-21T08:45:00Z",
       "resolvedAt": null
     }
-  ]
+  ],
+  "transactions": [
+    {
+      "id": 3,
+      "ctvId": 2,
+      "type": "withdrawal_paid",
+      "amount": 0,
+      "balanceAfter": 150000,
+      "sourceType": "payout",
+      "sourceId": 303,
+      "description": "Xác nhận chuyển khoản: TESTTX123",
+      "createdAt": "2026-05-22T11:32:22.992Z"
+    },
+    {
+      "id": 2,
+      "ctvId": 2,
+      "type": "withdrawal_hold",
+      "amount": -100000,
+      "balanceAfter": 150000,
+      "sourceType": "payout",
+      "sourceId": 303,
+      "description": "Tạo yêu cầu rút tiền về Techcombank",
+      "createdAt": "2026-05-22T11:32:22.989Z"
+    },
+    {
+      "id": 1,
+      "ctvId": 2,
+      "type": "earning",
+      "amount": 100000,
+      "balanceAfter": 250000,
+      "sourceType": "submission",
+      "sourceId": 204,
+      "description": "Duyệt báo cáo nhiệm vụ #103",
+      "createdAt": "2026-05-22T11:32:08.448Z"
+    }
+  ],
+  "activityLogs": [
+    {
+      "id": 2,
+      "actorRole": "collaborator",
+      "actorId": 3,
+      "eventType": "ctv_agent_submission_created",
+      "entityType": "submission",
+      "entityId": 205,
+      "message": "Trần Thị Mai đã nộp báo cáo qua CTV Agent API cho nhiệm vụ #102",
+      "metadata": {
+        "ctvId": 2,
+        "taskId": 102
+      },
+      "createdAt": "2026-05-22T12:43:29.608Z"
+    },
+    {
+      "id": 1,
+      "actorRole": "collaborator",
+      "actorId": 3,
+      "eventType": "ctv_agent_task_accepted",
+      "entityType": "task",
+      "entityId": 102,
+      "message": "Trần Thị Mai đã nhận nhiệm vụ qua CTV Agent API: Xây dựng giao diện Portal Cộng tác viên dạng Glassmorphism",
+      "metadata": {
+        "ctvId": 2,
+        "taskCode": "task-102"
+      },
+      "createdAt": "2026-05-22T12:41:14.896Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": 1,
+      "recipientRole": "admin",
+      "recipientCtvId": null,
+      "type": "ctv_agent_task_accepted",
+      "title": "CTV Agent nhận nhiệm vụ",
+      "message": "Trần Thị Mai đã nhận nhiệm vụ #102 qua Agent API",
+      "readAt": null,
+      "entityType": "task",
+      "entityId": 102,
+      "createdAt": "2026-05-22T12:41:14.896Z"
+    }
+  ],
+  "agentTokens": []
 }

@@ -35,18 +35,6 @@ const AdminAgentApi = ({ triggerToast }) => {
   const API_KEY = 'collabtask-agent-super-secret-key-2026';
   const BASE_URL = 'http://localhost:3001/api/agent';
 
-  // Automatically check API status on mount
-  useEffect(() => {
-    checkConnection();
-  }, []);
-
-  const handleCopy = (text, type) => {
-    navigator.clipboard.writeText(text);
-    setCopiedText(type);
-    triggerToast('Đã sao chép mã nguồn vào bộ nhớ tạm!', 'success');
-    setTimeout(() => setCopiedText(''), 2000);
-  };
-
   const checkConnection = async () => {
     setApiStatus('checking');
     try {
@@ -65,6 +53,18 @@ const AdminAgentApi = ({ triggerToast }) => {
     } catch (err) {
       setApiStatus('offline');
     }
+  };
+
+  // Automatically check API status on mount
+  useEffect(() => {
+    checkConnection();
+  }, []);
+
+  const handleCopy = (text, type) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(type);
+    triggerToast('Đã sao chép mã nguồn vào bộ nhớ tạm!', 'success');
+    setTimeout(() => setCopiedText(''), 2000);
   };
 
   const handleResetDatabase = async () => {
@@ -303,9 +303,10 @@ print(response.json())`;
         }}>
           {[
             { label: 'Nhiệm vụ', val: statusData.tasks, color: '#a855f7' },
-            { label: 'Cộng tác viên', val: statusData.collaborators, color: '#3b82f6' },
             { label: 'Báo cáo nộp bài', val: statusData.submissions, color: '#eab308' },
-            { label: 'Yêu cầu thanh toán', val: statusData.payouts, color: '#10b981' }
+            { label: 'Giao dịch ví', val: statusData.transactions, color: '#10b981' },
+            { label: 'Nhật ký hoạt động', val: statusData.activityLogs, color: '#3b82f6' },
+            { label: 'Thông báo', val: statusData.notifications, color: '#f97316' }
           ].map((item, idx) => (
             <div key={idx} className="glass-card" style={{
               padding: '1.25rem 1.5rem',
@@ -330,7 +331,7 @@ print(response.json())`;
         </h3>
         
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem', lineHeight: '1.5' }}>
-          Tất cả yêu cầu gửi tới các Endpoint bên dưới bắt buộc phải đính kèm Header <code style={{ background: 'rgba(255,255,255,0.06)', padding: '0.1rem 0.3rem', borderRadius: '4px', color: '#ec4899' }}>x-agent-api-key</code> hoặc Bearer Token chứa giá trị khóa này để xác minh quyền quản trị.
+          Tất cả yêu cầu gửi tới các Endpoint bên dưới bắt buộc phải đính kèm Header <code style={{ background: 'rgba(255,255,255,0.06)', padding: '0.1rem 0.3rem', borderRadius: '4px', color: '#ec4899' }}>x-agent-api-key</code> hoặc Bearer Token chứa giá trị khóa này để xác minh quyền quản trị. Khóa đang hiển thị chỉ dành cho demo local; môi trường production cần cấu hình bằng biến <code style={{ background: 'rgba(255,255,255,0.06)', padding: '0.1rem 0.3rem', borderRadius: '4px', color: '#ec4899' }}>AGENT_API_KEY</code> trên server.
         </p>
 
         <div style={{
@@ -519,7 +520,7 @@ print(response.json())`;
                 <span>Phê duyệt báo cáo nộp bài của CTV (Giải ngân tức thì)</span>
               </h4>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                Hành động này lập tức đổi trạng thái bài làm sang <code style={{ color: '#22c55e' }}>approved</code> và cộng thù lao tương ứng trực tiếp vào ví của CTV.
+                Hành động này đổi trạng thái bài làm sang <code style={{ color: '#22c55e' }}>approved</code>, cộng thù lao kèm bonus level vào ví CTV, ghi ledger transaction, review history, activity log và notification tương ứng.
               </p>
               
               <div style={{ position: 'relative' }}>
@@ -542,6 +543,39 @@ print(response.json())`;
                   title="Copy command"
                 >
                   {copiedText === 'review-code' ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.5rem' }}>
+              <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-title)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="badge badge-warning" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem' }}>POST</span>
+                <span>Từ chối báo cáo và ghi lý do audit</span>
+              </h4>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                Khi từ chối, Agent API ghi lý do vào review history, tạo activity log và gửi notification cho CTV để họ thấy trạng thái mới trong Header.
+              </p>
+
+              <div style={{ position: 'relative' }}>
+                <pre style={{
+                  background: 'rgba(0, 0, 0, 0.35)',
+                  padding: '1rem 3.5rem 1rem 1rem',
+                  borderRadius: '8px',
+                  fontFamily: 'monospace',
+                  fontSize: '0.85rem',
+                  overflowX: 'auto',
+                  color: '#fca5a5',
+                  border: '1px solid rgba(255,255,255,0.03)'
+                }}>
+                  {generateReviewSubCode(1, 'reject')}
+                </pre>
+                <button
+                  onClick={() => handleCopy(generateReviewSubCode(1, 'reject'), 'reject-code')}
+                  className="btn btn-outline"
+                  style={{ position: 'absolute', right: '10px', top: '10px', padding: '0.35rem', borderRadius: '6px' }}
+                  title="Copy command"
+                >
+                  {copiedText === 'reject-code' ? <Check size={14} /> : <Copy size={14} />}
                 </button>
               </div>
             </div>

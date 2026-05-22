@@ -1,5 +1,5 @@
 import express from 'express';
-import { readDb, writeDb, getNextId, resetDb } from '../db.js';
+import { readDb, writeDb, getNextId, resetDb, getLevelInfo, addActivityLog, addNotification } from '../db.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -44,7 +44,10 @@ router.get('/status', (req, res) => {
         collaborators: db.collaborators ? db.collaborators.length : 0,
         tasks: db.tasks ? db.tasks.length : 0,
         submissions: db.submissions ? db.submissions.length : 0,
-        payouts: db.payouts ? db.payouts.length : 0
+        payouts: db.payouts ? db.payouts.length : 0,
+        transactions: db.transactions ? db.transactions.length : 0,
+        activityLogs: db.activityLogs ? db.activityLogs.length : 0,
+        notifications: db.notifications ? db.notifications.length : 0
       }
     });
   } catch (error) {
@@ -74,7 +77,7 @@ router.post('/db', (req, res) => {
     }
 
     // Basic structure validation
-    const requiredTables = ['users', 'collaborators', 'tasks', 'submissions', 'payouts'];
+    const requiredTables = ['users', 'collaborators', 'tasks', 'submissions', 'payouts', 'transactions'];
     for (const table of requiredTables) {
       if (!Array.isArray(newDb[table])) {
         return res.status(400).json({ success: false, message: `Bảng dữ liệu '${table}' bắt buộc phải là một Mảng (Array).` });
@@ -249,20 +252,73 @@ router.post('/submissions/:id/review', (req, res) => {
     }
 
     if (action === 'approve') {
-      // 1. Credit the collaborator's balance
-      db.collaborators[ctvIndex].balance += sub.reward;
-      
-      // 2. Set submission as approved
-      db.submissions[subIndex].status = 'approved';
-      db.submissions[subIndex].reviewedAt = new Date().toISOString();
-      db.submissions[subIndex].rejectReason = '';
+      const ctv = db.collaborators[ctvIndex];
+      const levelInfo = getLevelInfo(ctv.exp || 0);
+      const bonusAmount = Math.round(sub.reward * (levelInfo.bonusPercent / 100));
+      const actualReward = sub.reward + bonusAmount;
+      const reviewedAt = new Date().toISOString();
+
+      ctv.balance += actualReward;
+      ctv.exp = (ctv.exp || 0) + Math.round(sub.reward / 1000);
+      ctv.level = getLevelInfo(ctv.exp).level;
+
+      db.transactions = db.transactions || [];
+      db.transactions.unshift({
+        id: getNextId('transactions'),
+        ctvId: sub.ctvId,
+        type: 'earning',
+        amount: actualReward,
+        balanceAfter: ctv.balance,
+        sourceType: 'submission',
+        sourceId: sub.id,
+        description: `Agent duyệt báo cáo nhiệm vụ #${sub.taskId}`,
+        createdAt: reviewedAt
+      });
+
+      sub.status = 'approved';
+      sub.reviewedAt = reviewedAt;
+      sub.rejectReason = '';
+      sub.reward = actualReward;
+      sub.reviewHistory = sub.reviewHistory || [];
+      sub.reviewHistory.push({
+        action: 'approved',
+        note: `Agent duyệt báo cáo, cộng ${actualReward.toLocaleString('vi-VN')}đ vào ví CTV.`,
+        createdAt: reviewedAt
+      });
+
+      const task = db.tasks.find(t => t.id === sub.taskId);
+      if (task) {
+        task.status = 'completed';
+        task.completedAt = reviewedAt;
+        task.lastActivityAt = reviewedAt;
+        task.submissionCount = db.submissions.filter(s => s.taskId === task.id).length;
+      }
+
+      addActivityLog(db, {
+        eventType: 'agent_submission_approved',
+        entityType: 'submission',
+        entityId: sub.id,
+        message: `Agent duyệt báo cáo nhiệm vụ #${sub.taskId}`,
+        metadata: { ctvId: sub.ctvId, taskId: sub.taskId, reward: actualReward }
+      });
+      addNotification(db, {
+        recipientRole: 'collaborator',
+        recipientCtvId: sub.ctvId,
+        type: 'submission_approved',
+        title: 'Báo cáo đã được Agent duyệt',
+        message: `Báo cáo nhiệm vụ #${sub.taskId} đã được duyệt và cộng ${actualReward.toLocaleString('vi-VN')}đ`,
+        entityType: 'submission',
+        entityId: sub.id
+      });
 
       writeDb(db);
       res.json({
         success: true,
         message: 'Phê duyệt báo cáo và cộng tiền thưởng cho CTV thành công!',
-        submission: db.submissions[subIndex],
-        newBalance: db.collaborators[ctvIndex].balance
+        submission: sub,
+        newBalance: ctv.balance,
+        bonusAmount,
+        actualReward
       });
     } else {
       if (!rejectReason) {
@@ -273,6 +329,28 @@ router.post('/submissions/:id/review', (req, res) => {
       db.submissions[subIndex].status = 'rejected';
       db.submissions[subIndex].rejectReason = rejectReason;
       db.submissions[subIndex].reviewedAt = new Date().toISOString();
+      db.submissions[subIndex].reviewHistory = db.submissions[subIndex].reviewHistory || [];
+      db.submissions[subIndex].reviewHistory.push({
+        action: 'rejected',
+        note: rejectReason,
+        createdAt: db.submissions[subIndex].reviewedAt
+      });
+      addActivityLog(db, {
+        eventType: 'agent_submission_rejected',
+        entityType: 'submission',
+        entityId: sub.id,
+        message: `Agent từ chối báo cáo nhiệm vụ #${sub.taskId}`,
+        metadata: { ctvId: sub.ctvId, taskId: sub.taskId, rejectReason }
+      });
+      addNotification(db, {
+        recipientRole: 'collaborator',
+        recipientCtvId: sub.ctvId,
+        type: 'submission_rejected',
+        title: 'Báo cáo bị Agent từ chối',
+        message: `Báo cáo nhiệm vụ #${sub.taskId} bị từ chối: ${rejectReason}`,
+        entityType: 'submission',
+        entityId: sub.id
+      });
 
       writeDb(db);
       res.json({
@@ -318,6 +396,34 @@ router.post('/payouts/:id/review', (req, res) => {
       db.payouts[payoutIndex].status = 'paid';
       db.payouts[payoutIndex].transactionId = transactionId;
       db.payouts[payoutIndex].resolvedAt = new Date().toISOString();
+      db.transactions = db.transactions || [];
+      db.transactions.unshift({
+        id: getNextId('transactions'),
+        ctvId: payout.ctvId,
+        type: 'withdrawal_paid',
+        amount: 0,
+        balanceAfter: ctvIndex !== -1 ? db.collaborators[ctvIndex].balance : null,
+        sourceType: 'payout',
+        sourceId: payout.id,
+        description: `Agent xác nhận chuyển khoản: ${transactionId}`,
+        createdAt: db.payouts[payoutIndex].resolvedAt
+      });
+      addActivityLog(db, {
+        eventType: 'agent_payout_paid',
+        entityType: 'payout',
+        entityId: payout.id,
+        message: `Agent xác nhận thanh toán payout #${payout.id}`,
+        metadata: { ctvId: payout.ctvId, transactionId }
+      });
+      addNotification(db, {
+        recipientRole: 'collaborator',
+        recipientCtvId: payout.ctvId,
+        type: 'payout_paid',
+        title: 'Yêu cầu rút tiền đã thanh toán',
+        message: `Yêu cầu rút ${payout.amount.toLocaleString('vi-VN')}đ đã được thanh toán.`,
+        entityType: 'payout',
+        entityId: payout.id
+      });
 
       writeDb(db);
       res.json({
@@ -339,6 +445,34 @@ router.post('/payouts/:id/review', (req, res) => {
       db.payouts[payoutIndex].status = 'rejected';
       db.payouts[payoutIndex].rejectReason = rejectReason;
       db.payouts[payoutIndex].resolvedAt = new Date().toISOString();
+      db.transactions = db.transactions || [];
+      db.transactions.unshift({
+        id: getNextId('transactions'),
+        ctvId: payout.ctvId,
+        type: 'withdrawal_refund',
+        amount: payout.amount,
+        balanceAfter: ctvIndex !== -1 ? db.collaborators[ctvIndex].balance : null,
+        sourceType: 'payout',
+        sourceId: payout.id,
+        description: `Agent hoàn tiền yêu cầu rút bị từ chối: ${rejectReason}`,
+        createdAt: db.payouts[payoutIndex].resolvedAt
+      });
+      addActivityLog(db, {
+        eventType: 'agent_payout_rejected',
+        entityType: 'payout',
+        entityId: payout.id,
+        message: `Agent từ chối payout #${payout.id}`,
+        metadata: { ctvId: payout.ctvId, rejectReason }
+      });
+      addNotification(db, {
+        recipientRole: 'collaborator',
+        recipientCtvId: payout.ctvId,
+        type: 'payout_rejected',
+        title: 'Yêu cầu rút tiền bị từ chối',
+        message: `Yêu cầu rút ${payout.amount.toLocaleString('vi-VN')}đ bị từ chối: ${rejectReason}`,
+        entityType: 'payout',
+        entityId: payout.id
+      });
 
       writeDb(db);
       res.json({

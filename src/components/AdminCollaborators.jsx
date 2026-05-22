@@ -502,6 +502,36 @@ const AdminCollaborators = ({ collaborators, setCollaborators, tasks, submission
                 </div>
               </div>
 
+              {(selectedCtvDetails.skills?.length > 0 || selectedCtvDetails.portfolioUrl || selectedCtvDetails.bio || selectedCtvDetails.preferredPlatforms?.length > 0 || selectedCtvDetails.availability) && (
+                <div style={{ marginBottom: '1.25rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '0.85rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', color: 'var(--text-title)', marginBottom: '0.75rem', fontWeight: '600' }}>Hồ sơ năng lực</h4>
+                  {selectedCtvDetails.skills?.length > 0 && (
+                    <div style={{ marginBottom: '0.65rem' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block', marginBottom: '0.35rem' }}>Kỹ năng:</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        {selectedCtvDetails.skills.map(skill => <span key={skill} className="badge badge-info">{skill}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  {selectedCtvDetails.preferredPlatforms?.length > 0 && (
+                    <div style={{ marginBottom: '0.65rem' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block', marginBottom: '0.35rem' }}>Nền tảng muốn nhận:</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        {selectedCtvDetails.preferredPlatforms.map(platform => <span key={platform} className="badge badge-secondary">{platform}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  {selectedCtvDetails.portfolioUrl && (
+                    <p style={{ fontSize: '0.8rem', marginBottom: '0.45rem' }}>
+                      <strong>Portfolio:</strong>{' '}
+                      <a href={selectedCtvDetails.portfolioUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', wordBreak: 'break-all' }}>{selectedCtvDetails.portfolioUrl}</a>
+                    </p>
+                  )}
+                  {selectedCtvDetails.availability && <p style={{ fontSize: '0.8rem', marginBottom: '0.45rem' }}><strong>Thời gian:</strong> {selectedCtvDetails.availability}</p>}
+                  {selectedCtvDetails.bio && <p style={{ fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: '1.5', margin: 0 }}><strong>Giới thiệu:</strong> {selectedCtvDetails.bio}</p>}
+                </div>
+              )}
+
               {/* Financial Metrics */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '1.25rem', background: 'rgba(99, 102, 241, 0.04)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '0.85rem', textAlign: 'center' }}>
                 <div>

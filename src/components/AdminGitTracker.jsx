@@ -59,7 +59,12 @@ const AdminGitTracker = ({
           id: l.id,
           time: new Date(l.timestamp).toLocaleTimeString('vi-VN'),
           text: `Webhook [${l.event.toUpperCase()}]: ${l.details}`,
-          type: l.event === 'push' ? 'info' : l.event === 'pull_request' ? 'success' : 'sys'
+          type: l.status === 'unmapped' || l.status === 'unmatched_task' ? 'warning' : l.event === 'push' ? 'info' : l.event === 'pull_request' ? 'success' : 'sys',
+          status: l.status,
+          taskId: l.taskId,
+          ctvId: l.ctvId,
+          submissionId: l.submissionId,
+          url: l.url
         }));
         setTerminalLogs(formattedLogs.reverse());
       }
@@ -204,8 +209,8 @@ const AdminGitTracker = ({
   // Trigger manual simulation of Push Event
   const simulatePushEvent = async () => {
     const devsWithGit = collaborators.filter(c => c.githubUsername && c.status === 'active');
-    let targetDev = { username: 'hoang', name: 'Nguyễn Văn Hoàng' };
-    
+    let targetDev;
+
     if (devsWithGit.length > 0) {
       const randomCtv = devsWithGit[Math.floor(Math.random() * devsWithGit.length)];
       targetDev = { username: randomCtv.githubUsername, name: randomCtv.name };
@@ -255,18 +260,19 @@ const AdminGitTracker = ({
   // Trigger manual simulation of Pull Request Event
   const simulatePREvent = async () => {
     const devsWithGit = collaborators.filter(c => c.githubUsername && c.status === 'active');
-    let targetDev = { username: 'hoang', name: 'Nguyễn Văn Hoàng' };
-    
+    let targetDev;
+
     if (devsWithGit.length > 0) {
       const randomCtv = devsWithGit[Math.floor(Math.random() * devsWithGit.length)];
-      targetDev = { username: randomCtv.githubUsername, name: randomCtv.name };
+      const activeTask = tasks.find(t => t.assignedCtvId === randomCtv.id && t.status === 'active') || tasks.find(t => t.status === 'active');
+      targetDev = { username: randomCtv.githubUsername, name: randomCtv.name, taskCode: activeTask?.taskCode || (activeTask ? `task-${activeTask.id}` : 'task-102') };
     } else {
       triggerToast('Vui lòng cập nhật Github Username cho CTV trong danh sách trước!', 'warning');
       return;
     }
 
     const prNumber = Math.floor(Math.random() * 80) + 20;
-    const prTitle = `feat: setup Github Realtime Tracker page for Admin dashboard (#${prNumber})`;
+    const prTitle = `feat: ${targetDev.taskCode} setup Github Realtime Tracker page (#${prNumber})`;
 
     try {
       const response = await fetch('/api/webhook/github', {
@@ -280,8 +286,10 @@ const AdminGitTracker = ({
           number: prNumber,
           pull_request: {
             title: prTitle,
+            body: `Automated test PR for ${targetDev.taskCode}`,
             merged: false,
             user: { login: targetDev.username },
+            head: { ref: `feature/${targetDev.taskCode}-auto-test` },
             html_url: `https://github.com/${appliedRepo.owner}/${appliedRepo.name}/pull/${prNumber}`
           }
         })
@@ -661,9 +669,15 @@ const AdminGitTracker = ({
                 if (log.type === 'info') color = '#0ea5e9';
 
                 return (
-                  <div key={log.id} style={{ marginBottom: '0.35rem', wordBreak: 'break-all' }}>
+                  <div key={log.id} style={{ marginBottom: '0.45rem', wordBreak: 'break-all' }}>
                     <span style={{ color: '#4b5563', marginRight: '0.5rem' }}>[{log.time}]</span>
                     <span style={{ color }}>{log.text}</span>
+                    <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                      {log.status && <span className={`badge ${log.status === 'mapped' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.58rem' }}>{log.status === 'mapped' ? 'Đã map' : 'Cần map thủ công'}</span>}
+                      {log.ctvId && <span className="badge badge-info" style={{ fontSize: '0.58rem' }}>CTV #{log.ctvId}</span>}
+                      {log.taskId && <span className="badge badge-info" style={{ fontSize: '0.58rem' }}>Task #{log.taskId}</span>}
+                      {log.submissionId && <span className="badge badge-success" style={{ fontSize: '0.58rem' }}>Submission #{log.submissionId}</span>}
+                    </div>
                   </div>
                 );
               })}

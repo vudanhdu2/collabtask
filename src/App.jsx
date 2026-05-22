@@ -10,6 +10,7 @@ import CollaboratorPortal from './components/CollaboratorPortal';
 import AdminGitTracker from './components/AdminGitTracker';
 import LoginPage from './components/LoginPage';
 import AdminAgentApi from './components/AdminAgentApi';
+import CollaboratorAgentApi from './components/CollaboratorAgentApi';
 import { api } from './services/api';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [payouts, setPayouts] = useState([]);
+  const [notifications, setNotifications] = useState([]);
 
   // Check existing token on startup
   useEffect(() => {
@@ -73,6 +75,13 @@ function App() {
 
       const payoutsData = await api.payouts.list();
       setPayouts(payoutsData);
+
+      try {
+        const notificationData = await api.notifications.list();
+        setNotifications(notificationData);
+      } catch {
+        setNotifications([]);
+      }
 
       // CTVs list chỉ dành cho Admin
       if (currentUser && currentUser.role === 'admin') {
@@ -135,6 +144,7 @@ function App() {
     setTasks([]);
     setSubmissions([]);
     setPayouts([]);
+    setNotifications([]);
     triggerToast('Đã đăng xuất hệ thống an toàn!', 'success');
   };
 
@@ -262,9 +272,13 @@ function App() {
           return <div style={{ color: 'var(--text-muted)' }}>Mục này chưa được triển khai.</div>;
       }
     } else {
+      if (activeTab === 'ctv-agent-api') {
+        return <CollaboratorAgentApi triggerToast={triggerToast} />;
+      }
+
       // Collaborator Portal
       return (
-        <CollaboratorPortal 
+        <CollaboratorPortal
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           selectedCollaborator={selectedCollaborator}
@@ -313,6 +327,9 @@ function App() {
           setActiveTab={setActiveTab}
           currentUser={currentUser}
           handleLogout={handleLogout}
+          notifications={notifications}
+          setNotifications={setNotifications}
+          onDataChange={loadAllData}
         />
 
         {/* Dynamic content rendering with layout grids */}

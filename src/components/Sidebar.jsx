@@ -47,6 +47,7 @@ const Sidebar = ({
     { id: 'my-tasks', label: 'Nhiệm vụ làm việc', icon: Briefcase },
     { id: 'my-submissions', label: 'Lịch sử báo cáo', icon: History },
     { id: 'my-wallet', label: 'Ví & Thanh toán', icon: Wallet },
+    { id: 'ctv-agent-api', label: 'Cổng API AI Agent', icon: Cpu },
     { id: 'leaderboard', label: 'Bảng xếp hạng', icon: Trophy },
     { id: 'guide-terms', label: 'Hướng dẫn & Điều khoản', icon: BookOpen },
   ];

@@ -4,6 +4,16 @@ import { verifyToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Lấy lịch sử giao dịch ví
+router.get('/transactions', verifyToken, (req, res) => {
+  const db = readDb();
+  const transactions = db.transactions || [];
+  if (req.user.role === 'admin') {
+    return res.json(transactions);
+  }
+  res.json(transactions.filter(t => t.ctvId === req.user.ctvId));
+});
+
 // Lấy danh sách yêu cầu rút tiền
 router.get('/', verifyToken, (req, res) => {
   const db = readDb();
@@ -41,6 +51,7 @@ router.post('/', verifyToken, (req, res) => {
 
   // 1. Khấu trừ số dư ví CTV tạm thời
   db.collaborators[ctvIndex].balance -= withdrawAmount;
+  db.transactions = db.transactions || [];
 
   // 2. Tạo bản ghi Payout
   const newPayout = {
@@ -58,6 +69,17 @@ router.post('/', verifyToken, (req, res) => {
   };
 
   db.payouts.unshift(newPayout);
+  db.transactions.unshift({
+    id: getNextId('transactions'),
+    ctvId: req.user.ctvId,
+    type: 'withdrawal_hold',
+    amount: -withdrawAmount,
+    balanceAfter: db.collaborators[ctvIndex].balance,
+    sourceType: 'payout',
+    sourceId: newPayout.id,
+    description: `Tạo yêu cầu rút tiền về ${bankName}`,
+    createdAt: new Date().toISOString()
+  });
   writeDb(db);
 
   res.status(201).json({
@@ -90,6 +112,19 @@ router.patch('/:id/pay', verifyToken, requireAdmin, (req, res) => {
   db.payouts[payoutIndex].status = 'paid';
   db.payouts[payoutIndex].transactionId = transactionId;
   db.payouts[payoutIndex].resolvedAt = new Date().toISOString();
+  const ctv = db.collaborators.find(c => c.id === payout.ctvId);
+  db.transactions = db.transactions || [];
+  db.transactions.unshift({
+    id: getNextId('transactions'),
+    ctvId: payout.ctvId,
+    type: 'withdrawal_paid',
+    amount: 0,
+    balanceAfter: ctv?.balance ?? null,
+    sourceType: 'payout',
+    sourceId: payout.id,
+    description: `Xác nhận chuyển khoản: ${transactionId}`,
+    createdAt: db.payouts[payoutIndex].resolvedAt
+  });
 
   writeDb(db);
   res.json(db.payouts[payoutIndex]);
@@ -120,6 +155,19 @@ router.patch('/:id/reject', verifyToken, requireAdmin, (req, res) => {
   if (ctvIndex !== -1) {
     db.collaborators[ctvIndex].balance += payout.amount;
   }
+
+  db.transactions = db.transactions || [];
+  db.transactions.unshift({
+    id: getNextId('transactions'),
+    ctvId: payout.ctvId,
+    type: 'withdrawal_refund',
+    amount: payout.amount,
+    balanceAfter: ctvIndex !== -1 ? db.collaborators[ctvIndex].balance : null,
+    sourceType: 'payout',
+    sourceId: payout.id,
+    description: `Hoàn tiền yêu cầu rút bị từ chối: ${rejectReason}`,
+    createdAt: new Date().toISOString()
+  });
 
   // Cập nhật trạng thái
   db.payouts[payoutIndex].status = 'rejected';

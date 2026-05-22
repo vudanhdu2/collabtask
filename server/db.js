@@ -376,7 +376,74 @@ export const initialData = {
       requestedAt: '2026-05-21T08:45:00Z',
       resolvedAt: null
     }
-  ]
+  ],
+  transactions: [],
+  activityLogs: [],
+  notifications: [],
+  agentTokens: []
+};
+
+export const ensureDbCollections = (db) => {
+  db.transactions = db.transactions || [];
+  db.activityLogs = db.activityLogs || [];
+  db.notifications = db.notifications || [];
+  db.agentTokens = db.agentTokens || [];
+  return db;
+};
+
+const getNextLocalId = (records = []) => {
+  if (records.length === 0) return 1;
+  return Math.max(...records.map(r => r.id || 0)) + 1;
+};
+
+export const addActivityLog = (db, { actorRole = 'system', actorId = null, eventType, entityType, entityId, message, metadata = {} }) => {
+  ensureDbCollections(db);
+  const log = {
+    id: getNextLocalId(db.activityLogs),
+    actorRole,
+    actorId,
+    eventType,
+    entityType,
+    entityId,
+    message,
+    metadata,
+    createdAt: new Date().toISOString()
+  };
+  db.activityLogs.unshift(log);
+  return log;
+};
+
+export const addNotification = (db, { recipientRole, recipientCtvId = null, type, title, message, entityType, entityId }) => {
+  ensureDbCollections(db);
+  const notification = {
+    id: getNextLocalId(db.notifications),
+    recipientRole,
+    recipientCtvId,
+    type,
+    title,
+    message,
+    readAt: null,
+    entityType,
+    entityId,
+    createdAt: new Date().toISOString()
+  };
+  db.notifications.unshift(notification);
+  return notification;
+};
+
+export const getTaskCode = (task) => task.taskCode || `task-${task.id}`;
+
+export const normalizeTaskLifecycle = (task, submissions = []) => {
+  const taskSubmissions = submissions.filter(s => s.taskId === task.id);
+  task.submissionCount = taskSubmissions.length;
+  task.taskCode = getTaskCode(task);
+  task.githubRepo = task.githubRepo || '';
+  task.githubBranch = task.githubBranch || '';
+  task.acceptedAt = task.acceptedAt || null;
+  task.completedAt = task.completedAt || null;
+  task.cancelledAt = task.cancelledAt || null;
+  task.lastActivityAt = task.lastActivityAt || task.createdAt || null;
+  return task;
 };
 
 // Tính toán Cấp độ (Level) và thông số liên quan từ EXP

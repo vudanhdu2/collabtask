@@ -20,7 +20,11 @@ const AdminDashboard = ({
   // 1. Calculate statistics
   const totalCtvs = collaborators.length;
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
-  
+  const revisionSubmissionsCount = submissions.filter(s => s.status === 'revision_requested').length;
+  const pendingCollaboratorsCount = collaborators.filter(c => c.status === 'pending').length;
+  const overdueTasksCount = tasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.status !== 'completed').length;
+  const pendingPayoutsCount = payouts.filter(p => p.status === 'pending').length;
+
   // Total paid out to CTVs
   const totalPaid = payouts
     .filter(p => p.status === 'paid')
@@ -83,6 +87,20 @@ const AdminDashboard = ({
       });
     });
 
+    tasks.forEach(task => {
+      if (task.acceptedAt || task.completedAt || task.lastActivityAt) {
+        const ctv = collaborators.find(c => c.id === task.assignedCtvId);
+        activities.push({
+          type: 'task',
+          time: new Date(task.completedAt || task.lastActivityAt || task.acceptedAt),
+          title: task.status === 'completed' ? 'Nhiệm vụ hoàn thành' : 'Cập nhật nhiệm vụ',
+          desc: `${task.title}${ctv ? ` · ${ctv.name}` : ''}`,
+          status: task.status,
+          meta: task.taskCode || `task-${task.id}`
+        });
+      }
+    });
+
     // Sort by time descending
     return activities
       .sort((a, b) => b.time - a.time)
@@ -91,16 +109,25 @@ const AdminDashboard = ({
 
   const recentActivities = getRecentActivities();
 
-  // 3. Mock data for task completion chart (last 7 days)
-  const chartDays = [
-    { day: 'Thứ 2', count: 12, height: '40%' },
-    { day: 'Thứ 3', count: 19, height: '65%' },
-    { day: 'Thứ 4', count: 15, height: '50%' },
-    { day: 'Thứ 5', count: 28, height: '90%' },
-    { day: 'Thứ 6', count: 22, height: '75%' },
-    { day: 'Thứ 7', count: 8, height: '28%' },
-    { day: 'CN', count: 14, height: '46%' },
-  ];
+  // 3. Real task completion chart (last 7 days)
+  const chartDays = Array.from({ length: 7 }).map((_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index));
+    const dateKey = date.toISOString().split('T')[0];
+    const count = submissions.filter(s => (
+      s.status === 'approved' &&
+      (s.reviewedAt || s.submittedAt || '').startsWith(dateKey)
+    )).length;
+    return {
+      day: date.toLocaleDateString('vi-VN', { weekday: 'short' }),
+      count,
+      height: '8%'
+    };
+  });
+  const maxChartCount = Math.max(...chartDays.map(d => d.count), 1);
+  chartDays.forEach(d => {
+    d.height = `${Math.max(8, Math.round((d.count / maxChartCount) * 90))}%`;
+  });
 
   // 4. Calculate top performing CTVs
   const topCtvs = [...collaborators]
@@ -125,9 +152,9 @@ const AdminDashboard = ({
           <div className="kpi-content">
             <p className="kpi-label">Tổng Cộng Tác Viên</p>
             <h3 className="kpi-value">{totalCtvs}</h3>
-            <span className="kpi-trend up">
-              <TrendingUp size={12} />
-              <span>+12% tháng này</span>
+            <span className="kpi-trend" style={{ color: pendingCollaboratorsCount > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
+              <UserPlus size={12} />
+              <span>{pendingCollaboratorsCount} hồ sơ chờ duyệt</span>
             </span>
           </div>
         </div>
@@ -143,7 +170,7 @@ const AdminDashboard = ({
               className="kpi-trend" 
               style={{ color: pendingSubmissionsCount > 0 ? 'var(--warning)' : 'var(--text-muted)' }}
             >
-              {pendingSubmissionsCount > 0 ? 'Cần xử lý ngay' : 'Đã duyệt hết'}
+              {pendingSubmissionsCount > 0 ? `Cần xử lý ngay · ${revisionSubmissionsCount} cần sửa` : `${revisionSubmissionsCount} báo cáo cần sửa`}
             </span>
           </div>
         </div>
@@ -153,11 +180,11 @@ const AdminDashboard = ({
             <Wallet size={24} />
           </div>
           <div className="kpi-content">
-            <p className="kpi-label">Đã Thanh Toán</p>
-            <h3 className="kpi-value">{totalPaid.toLocaleString()}đ</h3>
+            <p className="kpi-label">Earning Đã Duyệt</p>
+            <h3 className="kpi-value">{totalTaskValue.toLocaleString()}đ</h3>
             <span className="kpi-trend up">
               <TrendingUp size={12} />
-              <span>Duyệt thành công</span>
+              <span>Đã thanh toán: {totalPaid.toLocaleString()}đ</span>
             </span>
           </div>
         </div>
@@ -173,7 +200,7 @@ const AdminDashboard = ({
               className="kpi-trend"
               style={{ color: pendingPayoutsAmount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}
             >
-              {pendingPayoutsAmount > 0 ? 'Đang chờ xử lý' : 'Không có yêu cầu'}
+              {pendingPayoutsAmount > 0 ? `${pendingPayoutsCount} yêu cầu · ${overdueTasksCount} task quá hạn` : `${overdueTasksCount} task quá hạn`}
             </span>
           </div>
         </div>
@@ -274,6 +301,7 @@ const AdminDashboard = ({
                         {act.type === 'submission' && <CheckSquare size={16} style={{ color: 'var(--info)' }} />}
                         {act.type === 'payout' && <Wallet size={16} style={{ color: 'var(--success)' }} />}
                         {act.type === 'ctv_register' && <UserPlus size={16} style={{ color: 'var(--secondary)' }} />}
+                        {act.type === 'task' && <Clock size={16} style={{ color: 'var(--warning)' }} />}
                         <span style={{ color: 'var(--text-title)' }}>{act.title}</span>
                       </div>
                     </td>

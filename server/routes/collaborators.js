@@ -12,7 +12,7 @@ router.get('/', verifyToken, requireAdmin, (req, res) => {
 
 // Admin thêm CTV thủ công
 router.post('/', verifyToken, requireAdmin, (req, res) => {
-  const { name, phone, email, balance, githubUsername, status } = req.body;
+  const { name, phone, email, balance, githubUsername, status, skills, portfolioUrl, bio, preferredPlatforms, availability } = req.body;
   if (!name || !phone || !email) {
     return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ Tên, SĐT và Email.' });
   }
@@ -36,6 +36,11 @@ router.post('/', verifyToken, requireAdmin, (req, res) => {
     balance: Number(balance) || 0,
     status: status || 'active',
     githubUsername: githubUsername || '',
+    skills: Array.isArray(skills) ? skills : String(skills || '').split(',').map(s => s.trim()).filter(Boolean),
+    portfolioUrl: portfolioUrl || '',
+    bio: bio || '',
+    preferredPlatforms: Array.isArray(preferredPlatforms) ? preferredPlatforms : String(preferredPlatforms || '').split(',').map(p => p.trim()).filter(Boolean),
+    availability: availability || '',
     joinedAt: new Date().toISOString()
   };
 
