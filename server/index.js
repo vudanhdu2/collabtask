@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 
 // Import local modules
-import { readDb } from './db.js';
+import { initDb, readDb } from './db.js';
 import authRoutes from './routes/auth.js';
 import collaboratorRoutes from './routes/collaborators.js';
 import taskRoutes from './routes/tasks.js';
@@ -33,6 +33,7 @@ app.use(cors());
 app.use(express.json());
 
 // Tự động khởi chạy & xác nhận DB đã được thiết lập
+await initDb();
 const db = readDb();
 console.log(`[Database] Đã tải thành công ${db.collaborators.length} CTVs, ${db.tasks.length} nhiệm vụ.`);
 

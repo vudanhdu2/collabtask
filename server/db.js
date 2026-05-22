@@ -1,11 +1,20 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
+
+const { Pool } = pg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DB_FILE = path.join(__dirname, 'database.json');
+const DATABASE_URL = process.env.DATABASE_URL;
+const usePostgres = Boolean(DATABASE_URL);
+const pgPool = usePostgres ? new Pool({ connectionString: DATABASE_URL }) : null;
+let postgresReady = false;
+let postgresReadyPromise = null;
+let cachedDb = null;
 
 // Mẫu dữ liệu ban đầu (Seed Data)
 export const initialData = {
@@ -462,28 +471,97 @@ export const getLevelInfo = (exp) => {
   }
 };
 
+const cloneDb = (data) => JSON.parse(JSON.stringify(ensureDbCollections(data)));
+
+export const initDb = async () => {
+  if (!usePostgres) return false;
+  if (postgresReady) return true;
+  if (postgresReadyPromise) return postgresReadyPromise;
+
+  postgresReadyPromise = (async () => {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS app_state (
+        id integer PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+        data jsonb NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+
+    const existing = await pgPool.query('SELECT data FROM app_state WHERE id = 1');
+    if (existing.rowCount === 0) {
+      let seedData = initialData;
+      if (fs.existsSync(DB_FILE)) {
+        try {
+          seedData = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+        } catch (err) {
+          console.error('Không thể đọc database.json để seed PostgreSQL, dùng initialData:', err);
+        }
+      }
+      await pgPool.query(
+        'INSERT INTO app_state (id, data, updated_at) VALUES (1, $1::jsonb, now())',
+        [JSON.stringify(ensureDbCollections(seedData))]
+      );
+      cachedDb = cloneDb(seedData);
+    } else {
+      cachedDb = cloneDb(existing.rows[0].data);
+    }
+
+    postgresReady = true;
+    console.log('[Database] PostgreSQL JSONB storage đã sẵn sàng.');
+    return true;
+  })();
+
+  return postgresReadyPromise;
+};
+
+const ensurePostgresSyncReady = () => {
+  if (usePostgres && !postgresReady) {
+    throw new Error('PostgreSQL chưa được khởi tạo. Hãy gọi await initDb() trước khi dùng readDb/writeDb.');
+  }
+};
+
 // Đọc toàn bộ DB
 export const readDb = () => {
   try {
+    if (usePostgres) {
+      ensurePostgresSyncReady();
+      return cloneDb(cachedDb || initialData);
+    }
+
     if (!fs.existsSync(DB_FILE)) {
       writeDb(initialData);
-      return initialData;
+      return cloneDb(initialData);
     }
     const raw = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(raw);
+    return cloneDb(JSON.parse(raw));
   } catch (err) {
-    console.error('Lỗi khi đọc file Database:', err);
-    return initialData;
+    console.error('Lỗi khi đọc Database:', err);
+    return cloneDb(initialData);
   }
 };
 
 // Ghi đè DB
 export const writeDb = (data) => {
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+    const normalizedData = cloneDb(data);
+    if (usePostgres) {
+      ensurePostgresSyncReady();
+      cachedDb = normalizedData;
+      pgPool.query(
+        `INSERT INTO app_state (id, data, updated_at)
+         VALUES (1, $1::jsonb, now())
+         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+        [JSON.stringify(normalizedData)]
+      ).catch(err => {
+        console.error('Lỗi khi ghi PostgreSQL:', err);
+      });
+      return true;
+    }
+
+    fs.writeFileSync(DB_FILE, JSON.stringify(normalizedData, null, 2), 'utf8');
     return true;
   } catch (err) {
-    console.error('Lỗi khi ghi file Database:', err);
+    console.error('Lỗi khi ghi Database:', err);
     return false;
   }
 };
