@@ -19,7 +19,7 @@ const CollaboratorAgentApi = ({ triggerToast }) => {
   const [consoleResult, setConsoleResult] = useState(null);
   const [consoleLoading, setConsoleLoading] = useState(false);
 
-  const BASE_URL = 'http://localhost:3001/api/ctv-agent';
+  const BASE_URL = `${window.location.origin}/api/ctv-agent`;
   const token = localStorage.getItem('collabtask_token') || '';
   const maskedToken = token ? `${token.slice(0, 18)}••••••••${token.slice(-10)}` : 'Chưa có JWT token';
   const availableScopes = [

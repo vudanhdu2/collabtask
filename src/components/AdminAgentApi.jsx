@@ -33,7 +33,7 @@ const AdminAgentApi = ({ triggerToast }) => {
   const [taskDesc, setTaskDesc] = useState('Viết tối thiểu 5 test cases bằng Jest bao phủ 100% các nhánh xử lý lỗi.');
 
   const API_KEY = 'collabtask-agent-super-secret-key-2026';
-  const BASE_URL = 'http://localhost:3001/api/agent';
+  const BASE_URL = `${window.location.origin}/api/agent`;
 
   const checkConnection = async () => {
     setApiStatus('checking');
